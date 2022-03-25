@@ -1,8 +1,10 @@
 package africa.talentup.smsappbackend.service.sms;
 
 import africa.talentup.smsappbackend.data.dto.SmsDto;
-import org.json.JSONObject;
+
+import java.io.IOException;
 
 public interface SmsService {
-    SmsDto sendMessage(JSONObject jsonObject);
+    SmsDto sendMessage(String jsonObject) throws IOException;
+    SmsDto receiveMessage(String jsonObject) throws IOException;
 }
