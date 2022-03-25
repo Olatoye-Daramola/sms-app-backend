@@ -66,11 +66,11 @@ class AccountRepositoryTest {
                 .username("User2")
                 .build();
         Account secondSavedAccount = accountRepository.save(account);
+        assertThat(accountRepository.findById(secondSavedAccount.getId())).isNotNull();
 
         assertThat(accountRepository.findAll().size()).isEqualTo(2);
 
         accountRepository.deleteById(firstSavedAccount.getId());
         assertThat(accountRepository.findAll().size()).isEqualTo(1);
-        assertThat(accountRepository.findById(secondSavedAccount.getId())).isNotNull();
     }
 }

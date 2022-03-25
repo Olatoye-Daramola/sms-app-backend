@@ -34,7 +34,7 @@ public class RedisRateLimiter {
         String requests = operations.get(key);
         if(StringUtils.isNotBlank(requests) && Integer.parseInt(requests) >= REQUESTS_PER_24_HOURS) return false;
 
-        List<Object> txResults = stringTemplate.execute(new SessionCallback<>() {
+        List<Object> transactionResults = stringTemplate.execute(new SessionCallback<>() {
             @Override
             public <K, V> List<Object> execute(@NonNull RedisOperations<K, V> operations) throws DataAccessException {
                 final StringRedisTemplate redisTemplate = (StringRedisTemplate) operations;
@@ -46,8 +46,8 @@ public class RedisRateLimiter {
                 return operations.exec();
             }
         });
-//        assert txResults != null;
-//        logger.info("Current request count: " + txResults.get(0));
+//        assert transactionResults != null;
+//        logger.info("Current request count: " + transactionResults.get(0));
         return true;
     }
 }
