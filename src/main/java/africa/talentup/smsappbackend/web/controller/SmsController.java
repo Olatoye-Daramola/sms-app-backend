@@ -23,6 +23,7 @@ public class SmsController {
         this.smsService = smsService;
     }
 
+
     @PostMapping("/inbound/sms")
     public ResponseEntity<?> receiveMessage (@RequestBody String jsonObject) {
         try {
