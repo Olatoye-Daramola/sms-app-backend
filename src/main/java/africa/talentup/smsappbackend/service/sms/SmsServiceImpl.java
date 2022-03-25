@@ -11,7 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -84,6 +83,10 @@ public class SmsServiceImpl implements SmsService {
     private SmsDto validateNumberOfApiCalls(SmsDto smsRequestDto) {
         boolean isAllowed = rateLimiter.isAllowed(smsRequestDto.getSmsSender());
         if (isAllowed) {
+            if (Boolean.TRUE.equals(redisTemplate.hasKey(smsRequestDto.getSmsSender()))) {
+                throw new SmsAppException(
+                        "sms from " + smsRequestDto.getSmsSender() + " to " + smsRequestDto.getSmsReceiver() + " blocked by STOP request");
+            }
             return objectMapper.convertValue(smsRequestDto, SmsDto.class);
         } else throw new SmsAppException("API call limit exceeded");
     }
