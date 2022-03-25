@@ -123,7 +123,6 @@ class SmsServiceImplTest {
         for (byte[] data : keys) {
             sb.append(new String(data, 0, data.length));
         }
-        log.info("Keys -> ", sb);
-        System.out.println(sb);
+        log.info("Keys ->{} ", sb);
     }
 }

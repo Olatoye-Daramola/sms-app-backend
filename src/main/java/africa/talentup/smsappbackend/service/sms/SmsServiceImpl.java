@@ -12,7 +12,6 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -26,8 +25,6 @@ public class SmsServiceImpl implements SmsService {
 
     private final Gson gson = new Gson();
 
-    private Set<String> wordsContainer = new HashSet<>();
-
     @Autowired
     SmsServiceImpl(PhoneNumberService phoneNumberService, RedisRateLimiter rateLimiter,
                    ObjectMapper objectMapper, RedisTemplate<String, String> redisTemplate) {
@@ -38,39 +35,56 @@ public class SmsServiceImpl implements SmsService {
     }
 
     @Override
-    public SmsDto sendMessage(String jsonObject) {
-        if (jsonObject == null) throw new SmsAppException("Json cannot be null");
-        SmsDto smsDto = gson.fromJson(jsonObject, SmsDto.class);
+    public SmsDto receiveMessage(String jsonObject) {
+        SmsDto smsRequestDto = transformJsonInput(jsonObject);
 
-        PhoneNumber foundSender = phoneNumberService.findPhoneNumberByNumber(smsDto.getSmsSender());
-        PhoneNumber foundReceiver = phoneNumberService.findPhoneNumberByNumber(smsDto.getSmsReceiver());
+        validateInput(smsRequestDto);
 
-        boolean isAllowed = rateLimiter.isAllowed(foundSender.getNumber());
-        SmsDto responseDto = new SmsDto();
-        if (isAllowed) {
-            responseDto.setSmsSender(foundSender.getNumber());
-            responseDto.setSmsReceiver(foundReceiver.getNumber());
-            responseDto.setSmsBody(smsDto.getSmsBody());
+        SmsDto responseDto = objectMapper.convertValue(smsRequestDto, SmsDto.class);
 
-            wordsContainer = Set.of(responseDto.getSmsBody().split("[ !@#$%^&*()_+}{\":?><,./;'=]"));
-            if (wordsContainer.contains("STOP") || wordsContainer.contains("stop")) {
-                redisTemplate.opsForHash().put(responseDto.getSmsSender(), foundSender.getId(), responseDto.getSmsReceiver());
-                redisTemplate.expire(responseDto.getSmsSender(), 4, TimeUnit.HOURS);
-            }
-        } else throw new SmsAppException("API call limit exceeded");
+        checkForStopWordInMessage(responseDto);
         return responseDto;
     }
 
     @Override
-    public SmsDto receiveMessage(String jsonObject) throws IOException {
+    public SmsDto sendMessage(String jsonObject) {
+        SmsDto smsRequestDto = transformJsonInput(jsonObject);
+
+        validateInput(smsRequestDto);
+        return validateNumberOfApiCalls(smsRequestDto);
+    }
+
+
+
+
+    private SmsDto transformJsonInput(String jsonObject) {
         if (jsonObject == null) throw new SmsAppException("Json cannot be null");
-        SmsDto smsDto = objectMapper.readValue(jsonObject, SmsDto.class);
+        return gson.fromJson(jsonObject, SmsDto.class);
+    }
 
-        SmsDto responseDto = new SmsDto();
-        responseDto.setSmsSender(smsDto.getSmsSender());
-        responseDto.setSmsReceiver(smsDto.getSmsReceiver());
-        responseDto.setSmsBody(smsDto.getSmsBody());
+    private void validateInput(SmsDto smsRequestDto) {
+        if(smsRequestDto.getSmsSender() == null) throw new SmsAppException("Sender phone number is missing");
+        if(smsRequestDto.getSmsReceiver() == null) throw new SmsAppException("Receiver phone number is missing");
+        if(smsRequestDto.getSmsBody() == null) throw new SmsAppException("Message body is missing");
 
-        return responseDto;
+        phoneNumberService.findPhoneNumberByNumber(smsRequestDto.getSmsSender());
+        phoneNumberService.findPhoneNumberByNumber(smsRequestDto.getSmsReceiver());
+    }
+
+    private void checkForStopWordInMessage(SmsDto responseDto) {
+        PhoneNumber foundSender = phoneNumberService.findPhoneNumberByNumber(responseDto.getSmsSender());
+        Set<String> wordsContainer = Set.of(responseDto.getSmsBody().split("[ !@#$%^&*()_+}{\":?><,./;'=]"));
+
+        if (wordsContainer.contains("STOP") || wordsContainer.contains("stop")) {
+            redisTemplate.opsForHash().put(responseDto.getSmsSender(), foundSender.getId(), responseDto.getSmsReceiver());
+            redisTemplate.expire(responseDto.getSmsSender(), 4, TimeUnit.HOURS);
+        }
+    }
+
+    private SmsDto validateNumberOfApiCalls(SmsDto smsRequestDto) {
+        boolean isAllowed = rateLimiter.isAllowed(smsRequestDto.getSmsSender());
+        if (isAllowed) {
+            return objectMapper.convertValue(smsRequestDto, SmsDto.class);
+        } else throw new SmsAppException("API call limit exceeded");
     }
 }
